@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Utility Dashboard v10</title>
+    <title>Global Utility Dashboard v11</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -73,6 +73,7 @@
         .res-sub-label { font-size: 0.75rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase; display: block; }
         .res-value { font-size: 1.4rem; font-weight: 800; color: var(--primary); }
         .curr-val { color: var(--accent); }
+        .unit-val { color: #10b981; }
         .divider { margin: 12px 0; border-top: 1px dashed #e2e8f0; }
 
         .calendar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
@@ -92,6 +93,7 @@
 <div class="container">
     <h1>Global Utility Dashboard</h1>
 
+    <!-- 1. School Year Group Finder -->
     <section>
         <h2>School Year Group Finder</h2>
         <div class="tool-group">
@@ -121,18 +123,20 @@
         </div>
     </section>
 
+    <!-- 2. Live Currency Converter -->
     <section>
         <h2>Live Currency Converter (JPY Base)</h2>
         <div class="tool-group">
             <input type="number" id="jpy" placeholder="Amount in Yen">
             <select id="toCurr">
-                <option value="USD">USD (US)</option>
+                <option value="USD">USD (US Dollar)</option>
                 <option value="EUR">EUR (Euro)</option>
-                <option value="CAD">CAD (Canada)</option>
-                <option value="AUD">AUD (Australia)</option>
-                <option value="SGD">SGD (Singapore)</option>
-                <option value="TWD">TWD (Taiwan)</option>
-                <option value="HKD">HKD (Hong Kong)</option>
+                <option value="GBP">GBP (British Pound)</option>
+                <option value="CAD">CAD (Canada Dollar)</option>
+                <option value="AUD">AUD (AU Dollar)</option>
+                <option value="SGD">SGD (SG Dollar)</option>
+                <option value="TWD">TWD (TW Dollar)</option>
+                <option value="HKD">HKD (HK Dollar)</option>
             </select>
             <button onclick="convert()">Convert</button>
         </div>
@@ -144,6 +148,28 @@
         </div>
     </section>
 
+    <!-- 3. Unit Converter (Temperature & Distance) -->
+    <section>
+        <h2>Unit Converter</h2>
+        <div class="tool-group">
+            <input type="number" id="unitValInput" placeholder="Enter value">
+            <select id="unitType">
+                <option value="cToF">Celsius → Fahrenheit (°C to °F)</option>
+                <option value="fToC">Fahrenheit → Celsius (°F to °C)</option>
+                <option value="mToFt">Meters → Feet (m to ft)</option>
+                <option value="ftToM">Feet → Meters (ft to m)</option>
+            </select>
+            <button onclick="convertUnit()">Convert Unit</button>
+        </div>
+        <div id="unitResultArea" class="result-container" style="grid-template-columns: 1fr;">
+            <div class="res-card">
+                <div id="unitLabel" class="res-label">Conversion Result</div>
+                <div id="unitValOutput" class="res-value unit-val">-</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Calendars -->
     <section>
         <h2>Japan Public Holidays</h2>
         <div class="year-label">Year: 2026</div>
@@ -163,16 +189,16 @@ function checkClass() {
     const getAgeJP = (targetY) => (m < 4 || (m === 4 && d === 1)) ? (targetY - y) : (targetY - y - 1);
     const getAgeUS = (targetY) => (m < 9) ? (targetY - y) : (targetY - y - 1);
 
-    document.getElementById('resJP26').innerText = getAgeJP(2026) + " year-old class";
-    document.getElementById('resJP27').innerText = getAgeJP(2027) + " year-old class";
-    document.getElementById('resUS25').innerText = getAgeUS(2025) + " year-old class";
-    document.getElementById('resUS26').innerText = getAgeUS(2026) + " year-old class";
-    document.getElementById('resUS27').innerText = getAgeUS(2027) + " year-old class";
+    document.getElementById('resJP26').innerText = getAgeJP(2026) + " yrs old";
+    document.getElementById('resJP27').innerText = getAgeJP(2027) + " yrs old";
+    document.getElementById('resUS25').innerText = getAgeUS(2025) + " yrs old";
+    document.getElementById('resUS26').innerText = getAgeUS(2026) + " yrs old";
+    document.getElementById('resUS27').innerText = getAgeUS(2027) + " yrs old";
 
     document.getElementById('classResultArea').style.display = 'grid';
 }
 
-// --- Live Currency Converter (With CAD Support) ---
+// --- Live Currency Converter ---
 async function convert() {
     const amount = document.getElementById('jpy').value;
     const target = document.getElementById('toCurr').value;
@@ -191,10 +217,49 @@ async function convert() {
             document.getElementById('currLabel').innerText = `Live Rate: 1 JPY = ${rate.toFixed(4)} ${target}`;
         }
     } catch (e) {
-        // Fallback static rates if API fails
-        const fb = {USD:0.0066, EUR:0.0062, CAD:0.0090, AUD:0.010, SGD:0.0089, TWD:0.21, HKD:0.052};
+        const fb = {USD:0.0066, EUR:0.0062, GBP:0.0053, CAD:0.0090, AUD:0.010, SGD:0.0089, TWD:0.21, HKD:0.052};
         display.innerText = `${(amount * fb[target]).toFixed(2)} ${target} (Est)`;
     }
+}
+
+// --- Unit Converter Logic ---
+function convertUnit() {
+    const input = parseFloat(document.getElementById('unitValInput').value);
+    const type = document.getElementById('unitType').value;
+    const display = document.getElementById('unitValOutput');
+    const label = document.getElementById('unitLabel');
+    const area = document.getElementById('unitResultArea');
+
+    if (isNaN(input)) return alert("Please enter a valid number");
+
+    let result = 0;
+    let unitText = "";
+
+    switch (type) {
+        case 'cToF':
+            result = (input * 9/5) + 32;
+            unitText = "°F";
+            label.innerText = `${input} °C =`;
+            break;
+        case 'fToC':
+            result = (input - 32) * 5/9;
+            unitText = "°C";
+            label.innerText = `${input} °F =`;
+            break;
+        case 'mToFt':
+            result = input * 3.28084;
+            unitText = "ft";
+            label.innerText = `${input} m =`;
+            break;
+        case 'ftToM':
+            result = input / 3.28084;
+            unitText = "m";
+            label.innerText = `${input} ft =`;
+            break;
+    }
+
+    display.innerText = `${result.toFixed(2)} ${unitText}`;
+    area.style.display = 'grid';
 }
 
 // --- Holiday Engine ---
