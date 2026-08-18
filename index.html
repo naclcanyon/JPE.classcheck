@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Utility Dashboard v16</title>
+    <title>Global Utility Dashboard v17</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -185,9 +185,9 @@
     <div id="tab-converters" class="tab-content">
         <!-- Free-Input City Weather Finder -->
         <section>
-            <h2>City Climate Finder (Free Input)</h2>
+            <h2>City Climate Finder</h2>
             <div class="tool-group">
-                <input type="text" id="weatherCityInput" placeholder="e.g. 軽井沢, 箱根, 京都, Sapporo">
+                <input type="text" id="weatherCityInput" placeholder="e.g. Karuizawa, Kyoto, Tokyo, London">
                 <select id="weatherMonth">
                     <option value="1">January</option><option value="2">February</option>
                     <option value="3">March</option><option value="4">April</option>
@@ -314,7 +314,7 @@ function checkClass() {
     document.getElementById('classResultArea').style.display = 'grid';
 }
 
-// --- Free-Input Weather API Logic (Open-Meteo) ---
+// --- Free-Input Weather API Logic (Open-Meteo) with dual °C and °F ---
 async function getFreeWeatherInfo() {
     const query = document.getElementById('weatherCityInput').value.trim();
     const month = parseInt(document.getElementById('weatherMonth').value);
@@ -331,14 +331,13 @@ async function getFreeWeatherInfo() {
     desc.innerText = "";
 
     try {
-        // 1. Geocoding API: 地名から座標（緯度・経度）を取得
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`);
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
         const geoData = await geoRes.json();
 
         if (!geoData.results || geoData.results.length === 0) {
             title.innerText = `"${query}" Not Found`;
             temp.innerText = "-";
-            desc.innerText = "Could not find location. Try another city name (e.g., 横浜, 京都, Karuizawa).";
+            desc.innerText = "Could not find location. Try another city name (e.g., Karuizawa, Kyoto, Tokyo).";
             return;
         }
 
@@ -347,7 +346,6 @@ async function getFreeWeatherInfo() {
         const lon = location.longitude;
         const placeName = location.name + (location.admin1 ? `, ${location.admin1}` : "") + (location.country ? ` (${location.country})` : "");
 
-        // 2. Weather API: 座標と月から気候データを算出（直近1年分のデータサンプルを利用）
         const year = 2025;
         const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
         const lastDay = new Date(year, month, 0).getDate();
@@ -361,20 +359,28 @@ async function getFreeWeatherInfo() {
             const minTemps = weatherData.daily.temperature_2m_min;
             const precip = weatherData.daily.precipitation_sum;
 
-            const avgMax = (maxTemps.reduce((a, b) => a + b, 0) / maxTemps.length).toFixed(1);
-            const avgMin = (minTemps.reduce((a, b) => a + b, 0) / minTemps.length).toFixed(1);
+            const avgMaxC = (maxTemps.reduce((a, b) => a + b, 0) / maxTemps.length);
+            const avgMinC = (minTemps.reduce((a, b) => a + b, 0) / minTemps.length);
             const totalRain = precip.reduce((a, b) => a + b, 0).toFixed(0);
 
+            const avgMinF = (avgMinC * 9/5) + 32;
+            const avgMaxF = (avgMaxC * 9/5) + 32;
+
+            const minCStr = avgMinC.toFixed(1);
+            const maxCStr = avgMaxC.toFixed(1);
+            const minFStr = avgMinF.toFixed(1);
+            const maxFStr = avgMaxF.toFixed(1);
+
             title.innerText = `${placeName} - Month ${month}`;
-            temp.innerText = `${avgMin}°C - ${avgMax}°C`;
+            temp.innerText = `${minCStr}°C - ${maxCStr}°C / ${minFStr}°F - ${maxFStr}°F`;
 
             let climateNote = "";
-            if (avgMax > 28) climateNote = "🔥 Hot conditions. Stay hydrated.";
-            else if (avgMax > 20) climateNote = "🌤️ Warm and comfortable weather.";
-            else if (avgMax > 10) climateNote = "🍁 Cool climate. Light jacket recommended.";
+            if (avgMaxC > 28) climateNote = "🔥 Hot conditions. Stay hydrated.";
+            else if (avgMaxC > 20) climateNote = "🌤️ Warm and comfortable weather.";
+            else if (avgMaxC > 10) climateNote = "🍁 Cool climate. Light jacket recommended.";
             else climateNote = "❄️ Cold weather. Heavy coat required.";
 
-            desc.innerText = `Average Range: ${avgMin}°C to ${avgMax}°C\nMonthly Rainfall: ~${totalRain} mm\n${climateNote}`;
+            desc.innerText = `Average Range: ${minCStr}°C to ${maxCStr}°C (${minFStr}°F to ${maxFStr}°F)\nMonthly Rainfall: ~${totalRain} mm\n${climateNote}`;
         }
     } catch (e) {
         title.innerText = "Error fetching data";
