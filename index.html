@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Utility Dashboard v14</title>
+    <title>Global Utility Dashboard v16</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -71,6 +71,7 @@
             min-width: 160px;
             outline: none;
         }
+        input:focus { border-color: var(--primary); }
         button.action-btn {
             background: var(--primary);
             color: white;
@@ -182,18 +183,11 @@
 
     <!-- TAB 2: CONVERTERS & CLIMATE -->
     <div id="tab-converters" class="tab-content">
-        <!-- City Weather Finder -->
+        <!-- Free-Input City Weather Finder -->
         <section>
-            <h2>City Weather & Climate Info</h2>
+            <h2>City Climate Finder (Free Input)</h2>
             <div class="tool-group">
-                <select id="weatherCity">
-                    <option value="tokyo">Tokyo (Japan)</option>
-                    <option value="ny">New York (US)</option>
-                    <option value="london">London (UK)</option>
-                    <option value="toronto">Toronto (Canada)</option>
-                    <option value="sydney">Sydney (Australia)</option>
-                    <option value="singapore">Singapore</option>
-                </select>
+                <input type="text" id="weatherCityInput" placeholder="e.g. 軽井沢, 箱根, 京都, Sapporo">
                 <select id="weatherMonth">
                     <option value="1">January</option><option value="2">February</option>
                     <option value="3">March</option><option value="4">April</option>
@@ -202,7 +196,7 @@
                     <option value="9">September</option><option value="10">October</option>
                     <option value="11">November</option><option value="12">December</option>
                 </select>
-                <button class="action-btn" onclick="getWeatherInfo()">Get Climate</button>
+                <button class="action-btn" onclick="getFreeWeatherInfo()">Get Climate</button>
             </div>
             <div id="weatherResultArea" class="result-container" style="grid-template-columns: 1fr;">
                 <div class="res-card">
@@ -320,53 +314,73 @@ function checkClass() {
     document.getElementById('classResultArea').style.display = 'grid';
 }
 
-// --- Weather Info Database Logic ---
-const climateData = {
-    tokyo: {
-        name: "Tokyo, Japan",
-        data: {
-            1: { temp: "2°C - 10°C (36°F - 50°F)", desc: "☀️ Cold and dry. Mostly sunny days with occasional chilly winds." },
-            4: { temp: "10°C - 19°C (50°F - 66°F)", desc: "🌸 Mild and pleasant. Cherry blossom season with comfortable weather." },
-            7: { temp: "22°C - 30°C (72°F - 86°F)", desc: "🌧️ Hot and humid. Rainy season ends mid-month, becoming summer." },
-            10: { temp: "14°C - 22°C (57°F - 72°F)", desc: "🍁 Cool and comfortable. Excellent weather for outdoor activities." }
-        }
-    },
-    ny: {
-        name: "New York, US",
-        data: {
-            1: { temp: "-3°C - 4°C (27°F - 39°F)", desc: "❄️ Freezing cold with chances of snow and icy winds." },
-            4: { temp: "7°C - 16°C (45°F - 61°F)", desc: "🌱 Fresh spring weather. Moderate rain showers." },
-            7: { temp: "21°C - 29°C (70°F - 84°F)", desc: "☀️ Warm to hot. Occasional afternoon thunderstorms." },
-            10: { temp: "10°C - 18°C (50°F - 64°F)", desc: "🍂 Crisp autumn days with beautiful fall foliage." }
-        }
-    },
-    sydney: {
-        name: "Sydney, Australia",
-        data: {
-            1: { temp: "19°C - 26°C (66°F - 79°F)", desc: "☀️ Warm summer. Great beach weather with high sunshine." },
-            4: { temp: "15°C - 23°C (59°F - 73°F)", desc: "🍂 Pleasant autumn. Mild days and comfortable nights." },
-            7: { temp: "9°C - 17°C (48°F - 63°F)", desc: "🌬️ Cool winter. Mildest time of year with clear skies." },
-            10: { temp: "14°C - 22°C (57°F - 72°F)", desc: "🌸 Springtime. Warming up with plenty of sunny days." }
-        }
-    }
-};
-
-function getWeatherInfo() {
-    const city = document.getElementById('weatherCity').value;
-    const month = document.getElementById('weatherMonth').value;
+// --- Free-Input Weather API Logic (Open-Meteo) ---
+async function getFreeWeatherInfo() {
+    const query = document.getElementById('weatherCityInput').value.trim();
+    const month = parseInt(document.getElementById('weatherMonth').value);
     const area = document.getElementById('weatherResultArea');
-    
-    const cityObj = climateData[city] || climateData.tokyo;
-    const monthData = (cityObj.data && cityObj.data[month]) || {
-        temp: "15°C - 22°C (59°F - 72°F)",
-        desc: "🌤️ Moderate seasonal weather. Check local forecasts for details."
-    };
+    const title = document.getElementById('weatherTitle');
+    const temp = document.getElementById('weatherTemp');
+    const desc = document.getElementById('weatherDesc');
 
-    document.getElementById('weatherTitle').innerText = `${cityObj.name} - Month ${month}`;
-    document.getElementById('weatherTemp').innerText = monthData.temp;
-    document.getElementById('weatherDesc').innerText = monthData.desc;
+    if (!query) return alert("Please enter a city or town name.");
 
     area.style.display = 'grid';
+    title.innerText = "Searching location...";
+    temp.innerText = "Loading...";
+    desc.innerText = "";
+
+    try {
+        // 1. Geocoding API: 地名から座標（緯度・経度）を取得
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`);
+        const geoData = await geoRes.json();
+
+        if (!geoData.results || geoData.results.length === 0) {
+            title.innerText = `"${query}" Not Found`;
+            temp.innerText = "-";
+            desc.innerText = "Could not find location. Try another city name (e.g., 横浜, 京都, Karuizawa).";
+            return;
+        }
+
+        const location = geoData.results[0];
+        const lat = location.latitude;
+        const lon = location.longitude;
+        const placeName = location.name + (location.admin1 ? `, ${location.admin1}` : "") + (location.country ? ` (${location.country})` : "");
+
+        // 2. Weather API: 座標と月から気候データを算出（直近1年分のデータサンプルを利用）
+        const year = 2025;
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+        const weatherRes = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`);
+        const weatherData = await weatherRes.json();
+
+        if (weatherData.daily) {
+            const maxTemps = weatherData.daily.temperature_2m_max;
+            const minTemps = weatherData.daily.temperature_2m_min;
+            const precip = weatherData.daily.precipitation_sum;
+
+            const avgMax = (maxTemps.reduce((a, b) => a + b, 0) / maxTemps.length).toFixed(1);
+            const avgMin = (minTemps.reduce((a, b) => a + b, 0) / minTemps.length).toFixed(1);
+            const totalRain = precip.reduce((a, b) => a + b, 0).toFixed(0);
+
+            title.innerText = `${placeName} - Month ${month}`;
+            temp.innerText = `${avgMin}°C - ${avgMax}°C`;
+
+            let climateNote = "";
+            if (avgMax > 28) climateNote = "🔥 Hot conditions. Stay hydrated.";
+            else if (avgMax > 20) climateNote = "🌤️ Warm and comfortable weather.";
+            else if (avgMax > 10) climateNote = "🍁 Cool climate. Light jacket recommended.";
+            else climateNote = "❄️ Cold weather. Heavy coat required.";
+
+            desc.innerText = `Average Range: ${avgMin}°C to ${avgMax}°C\nMonthly Rainfall: ~${totalRain} mm\n${climateNote}`;
+        }
+    } catch (e) {
+        title.innerText = "Error fetching data";
+        temp.innerText = "-";
+        desc.innerText = "Unable to load weather data. Please check your internet connection.";
+    }
 }
 
 // --- Phone Country Finder Logic ---
@@ -391,8 +405,6 @@ function findPhoneCountry() {
     else if (phone.startsWith('+86')) country = "🇨🇳 China (+86)";
     else if (phone.startsWith('+65')) country = "🇸🇬 Singapore (+65)";
     else if (phone.startsWith('+886')) country = "🇹🇼 Taiwan (+886)";
-    else if (phone.startsWith('+852')) country = "🇭🇰 Hong Kong (+852)";
-    else if (phone.startsWith('+61')) country = "🇦🇺 Australia (+61)";
 
     output.innerText = country;
     area.style.display = 'grid';
@@ -491,7 +503,7 @@ function draw(y, id) {
             if (dow === 6) html += '</tr><tr>';
             date.setDate(d + 1);
         }
-        t.innerHTML += html + '</tr>TableCell';
+        t.innerHTML += html + '</tr></table></div>';
     }
 }
 draw(2026, 'grid2026');
